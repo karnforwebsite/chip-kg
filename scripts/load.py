@@ -71,8 +71,8 @@ def coerce(key, value):
 
 
 def counts(session):
-    n = session.run("MATCH (n) RETURN labels(n)[0] AS label, count(*) AS c ORDER BY label").data()
-    e = session.run("MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS c ORDER BY type").data()
+    n = session.run("MATCH (n:ChipKG) RETURN [l IN labels(n) WHERE l <> 'ChipKG'][0] AS label, count(*) AS c ORDER BY label").data()
+    e = session.run("MATCH (:ChipKG)-[r]->(:ChipKG) RETURN type(r) AS type, count(*) AS c ORDER BY type").data()
     return {r["label"]: r["c"] for r in n}, {r["type"]: r["c"] for r in e}
 
 
@@ -94,8 +94,8 @@ def main():
             print("edges:", e)
             return 0
         if "--reset" in sys.argv:
-            print("Deleting everything...")
-            session.run("MATCH (n) DETACH DELETE n")
+            print("Deleting :ChipKG nodes...")
+            session.run("MATCH (n:ChipKG) DETACH DELETE n")
 
         print("Applying constraints...")
         for stmt in CONSTRAINTS_CYPHER.read_text().split(";"):
@@ -110,7 +110,7 @@ def main():
             by_label.setdefault(n["label"], []).append(n)
         for label, props in LABEL_PROPS.items():
             batch = [{"id": r["id"], **{k: coerce(k, r[k]) for k in props}} for r in by_label.get(label, [])]
-            session.run(f"UNWIND $batch AS row MERGE (n:{label} {{id: row.id}}) SET n += row", batch=batch)
+            session.run(f"UNWIND $batch AS row MERGE (n:{label} {{id: row.id}}) SET n += row, n:ChipKG", batch=batch)
             print(f"  {label}: {len(batch)}")
 
         print("Loading edges...")
